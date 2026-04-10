@@ -1,0 +1,53 @@
+version: 1
+system: synal
+source: github
+repo: TML-4PM/ai-evolution-program
+root: synal/
+
+pickup_paths:
+  - synal/supabase/
+  - synal/lambda/
+  - synal/ui/
+  - synal/extension/
+
+execution_order:
+  - step: apply_supabase_migrations
+    path: synal/supabase/
+    description: apply all SQL files in order
+
+  - step: deploy_lambdas
+    path: synal/lambda/
+    description: deploy or update lambda functions
+
+  - step: wire_api_routes
+    description: ensure API Gateway or bridge routes exist
+
+  - step: patch_command_centre_ui
+    path: synal/ui/
+    description: apply UI wiring for tasks, proof, chains
+
+  - step: patch_extensions
+    path: synal/extension/
+    description: ensure Snaps and other extensions send task-intake
+
+  - step: run_validation
+    description: execute golden path test
+
+  - step: update_reality_ledger
+    description: mark components REAL or PARTIAL
+
+validation:
+  golden_path:
+    - snaps_click
+    - task_created
+    - task_visible
+    - task_run_or_auto_execute
+    - proof_written
+    - task_completed
+    - ledger_updated
+
+rules:
+  - no_task_completed_without_proof
+  - supabase_is_source_of_truth
+  - github_is_distribution_layer
+  - bridge_is_execution_layer
