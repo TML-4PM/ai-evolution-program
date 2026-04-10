@@ -214,7 +214,11 @@ def update_reality_ledger(step_results):
         INSERT INTO public.t4h_reality_ledger (entity_key, claim_scope, claim_status, claim_source, notes, validated_at)
         VALUES ('synal-manifest-runner', 'lambda_deployment', '{overall}',
                 'synal-manifest-runner', '{ev_esc}', NOW())
-        -- no conflict guard: every run writes a row as execution proof
+        ON CONFLICT (entity_key, claim_scope)
+        DO UPDATE SET claim_status=EXCLUDED.claim_status,
+                      claim_source=EXCLUDED.claim_source,
+                      notes=EXCLUDED.notes,
+                      validated_at=NOW()
         """
         r = sb_run_sql(sql)
         if r.get("error"):
