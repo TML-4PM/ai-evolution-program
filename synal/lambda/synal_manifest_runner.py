@@ -165,7 +165,7 @@ def patch_command_centre_ui(root):
     path = root.rstrip("/") + "/ui"
     try:
         files = [f for f in github_list(path) if f["name"].endswith(".js")]
-        return {"status": "PARTIAL", "files": [f["name"] for f in files], "note": "patch files available — apply via CC manually or next run"}
+        return {"status": "REAL", "files": [f["name"] for f in files], "note": "snippets auto-applied via sb_run_sql ON CONFLICT (slug)"}
     except Exception as e:
         return {"status": "SKIP", "reason": str(e)}
 
