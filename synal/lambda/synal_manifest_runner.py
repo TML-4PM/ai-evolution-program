@@ -207,21 +207,24 @@ def update_reality_ledger(step_results):
               "PRETEND" if all(s in ("PRETEND", "SKIP") for s in statuses) else "PARTIAL"
 
     evidence = json.dumps({k: v.get("status") for k, v in step_results.items()})
-    sql = f"""
-    INSERT INTO public.arch_maturity_spine (business_key, component, maturity_level, evidence, assessed_at)
-    VALUES ('t4h.bridge.orchestrator', 'synal-manifest-runner', '{overall}',
-            '{evidence.replace("'","''")}', NOW())
-    ON CONFLICT (business_key, component)
-    DO UPDATE SET maturity_level=EXCLUDED.maturity_level,
-                  evidence=EXCLUDED.evidence, assessed_at=NOW()
-    """
+    # Use sb_run_sql directly — bridge_call 400s on large INSERT payloads
     try:
-        bridge_call(sql)
-        log("ledger", "OK", f"overall={overall}")
+        ev_esc = evidence.replace("'", "''")
+        sql = f"""
+        INSERT INTO public.t4h_reality_ledger (entity_key, claim_scope, claim_status, claim_source, notes, validated_at)
+        VALUES ('synal-manifest-runner', 'lambda_deployment', '{overall}',
+                'synal-manifest-runner', '{ev_esc}', NOW())
+        ON CONFLICT DO NOTHING
+        """
+        r = sb_run_sql(sql)
+        if r.get("error"):
+            log("ledger", "ERROR", r["error"])
+            return {"status": "PARTIAL", "error": r["error"]}
+        log("ledger", "OK", f"overall={overall} written_to=t4h_reality_ledger")
+        return {"status": "REAL", "overall": overall}
     except Exception as e:
         log("ledger", "ERROR", str(e))
-
-    return {"status": overall}
+        return {"status": "PARTIAL", "error": str(e)}
 
 
 # ── Handler ───────────────────────────────────────────────────────────────────
