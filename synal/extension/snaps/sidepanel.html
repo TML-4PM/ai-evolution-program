@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Synal Command</title>
+  <style>
+    :root {
+      --bg: #0f0f11; --surface: #18181c; --surface-hi: #222228;
+      --border: #2a2a32; --text: #e8e8f0; --text-muted: #6b6b80;
+      --accent: #8B5CF6; --accent-dim: rgba(139,92,246,0.15);
+      --success: #22c55e; --warn: #f59e0b; --error: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; height: 100vh; display: flex; flex-direction: column; }
+
+    .header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    .brand { display: flex; align-items: center; gap: 8px; }
+    .brand-name { font-weight: 700; font-size: 15px; }
+    .brand-sub { font-size: 10px; color: var(--text-muted); }
+    .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+
+    .nav { display: flex; border-bottom: 1px solid var(--border); overflow-x: auto; }
+    .nav-item { padding: 8px 14px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+    .nav-item.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .nav-item:hover:not(.active) { color: var(--text); }
+
+    .content { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+
+    .context-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+    .context-label { font-size: 9px; font-weight: 700; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 6px; }
+    .context-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
+    .context-val { color: var(--accent); font-weight: 600; }
+
+    .widget { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .widget-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    .widget-title { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+    .widget-badge { font-size: 10px; color: var(--text-muted); }
+    .widget-body { padding: 10px 12px; }
+
+    .task-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+    .task-row:last-child { border-bottom: none; }
+    .chip { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 999px; }
+    .chip-queued { background: rgba(245,158,11,.1); color: var(--warn); }
+    .chip-done   { background: rgba(34,197,94,.1);  color: var(--success); }
+    .chip-failed { background: rgba(239,68,68,.1);  color: var(--error); }
+    .task-title  { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .action-row { display: flex; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--border); }
+    .btn-sm { flex: 1; padding: 6px; background: var(--surface-hi); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 11px; cursor: pointer; text-align: center; }
+    .btn-sm:hover { border-color: var(--accent); }
+    .btn-primary-sm { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+    .empty { text-align: center; padding: 24px 0; color: var(--text-muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+        <circle cx="10" cy="10" r="8" fill="#8B5CF6" opacity="0.2"/>
+        <circle cx="10" cy="10" r="5" fill="#8B5CF6"/>
+      </svg>
+      <div>
+        <div class="brand-name">Synal Command</div>
+        <div class="brand-sub">Signals · Tasks · Actions · Proof</div>
+      </div>
+    </div>
+    <span class="sync-dot" id="syncDot"></span>
+  </div>
+
+  <nav class="nav">
+    <span class="nav-item active" data-tab="dashboard">Dashboard</span>
+    <span class="nav-item" data-tab="tasks">Tasks</span>
+    <span class="nav-item" data-tab="signals">Signals</span>
+    <span class="nav-item" data-tab="proof">Proof</span>
+  </nav>
+
+  <div class="content" id="content">
+    <!-- Context card -->
+    <div class="context-card">
+      <div class="context-label">BROWSER CONTEXT</div>
+      <div class="context-row"><span>Page</span><span class="context-val" id="ctxPage">Loading...</span></div>
+      <div class="context-row"><span>Tabs open</span><span class="context-val" id="ctxTabs">—</span></div>
+      <div class="context-row"><span>Last sync</span><span class="context-val" id="ctxSync">—</span></div>
+    </div>
+
+    <!-- Active tasks widget -->
+    <div class="widget">
+      <div class="widget-header">
+        <span class="widget-title">ACTIVE TASKS</span>
+        <span class="widget-badge" id="taskCount">0</span>
+      </div>
+      <div class="widget-body" id="taskWidget">
+        <div class="empty">No active tasks</div>
+      </div>
+      <div class="action-row">
+        <button class="btn-sm btn-primary-sm" id="snapPanelBtn">+ Snap</button>
+        <button class="btn-sm" id="refreshBtn">Refresh</button>
+      </div>
+    </div>
+
+    <!-- Proof status widget -->
+    <div class="widget">
+      <div class="widget-header">
+        <span class="widget-title">PROOF STATUS</span>
+        <span class="widget-badge" id="proofCount">0 pending</span>
+      </div>
+      <div class="widget-body" id="proofWidget">
+        <div class="empty">No proof items</div>
+      </div>
+    </div>
+
+    <!-- Next best action -->
+    <div class="widget">
+      <div class="widget-header">
+        <span class="widget-title">NEXT ACTION</span>
+      </div>
+      <div class="widget-body" id="nextAction">
+        <div class="empty">Snap a signal to begin</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    async function init() {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const allTabs = await chrome.tabs.query({});
+      document.getElementById('ctxPage').textContent = (tab?.title || '—').slice(0, 30);
+      document.getElementById('ctxTabs').textContent = allTabs.length;
+
+      const { tasks = [], lastSync } = await chrome.storage.local.get(['tasks', 'lastSync']);
+      if (lastSync) {
+        const ago = Math.round((Date.now() - lastSync) / 1000);
+        document.getElementById('ctxSync').textContent = ago < 60 ? ago + 's ago' : Math.round(ago/60) + 'm ago';
+      }
+
+      const active = tasks.filter(t => t.status !== 'completed' && t.status !== 'failed');
+      document.getElementById('taskCount').textContent = active.length;
+      if (active.length) {
+        document.getElementById('taskWidget').innerHTML = active.slice(0, 5).map(t => `
+          <div class="task-row">
+            <span class="chip chip-queued">${(t.status||'queued').toUpperCase()}</span>
+            <span class="task-title">${t.event_type || 'SNAP'}</span>
+          </div>`).join('');
+      }
+    }
+
+    document.getElementById('snapPanelBtn')?.addEventListener('click', () => {
+      chrome.runtime.sendMessage({ type: 'OPEN_POPUP' });
+    });
+    document.getElementById('refreshBtn')?.addEventListener('click', init);
+
+    // Nav tabs
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        item.classList.add('active');
+      });
+    });
+
+    init();
+  </script>
+</body>
+</html>

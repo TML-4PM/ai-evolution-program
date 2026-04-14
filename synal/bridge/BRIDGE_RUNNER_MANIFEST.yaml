@@ -1,53 +1,71 @@
-version: 1
-system: synal
-source: github
+version: "2.1"
+project: synal
 repo: TML-4PM/ai-evolution-program
-root: synal/
+branch: synal-ship-20260414
+pickup_root: synal/
 
-pickup_paths:
-  - synal/supabase/
-  - synal/lambda/
-  - synal/ui/
-  - synal/extension/
+metadata:
+  rdti: true
+  is_rd: true
+  project_code: SYNAL-EDGE-01
+  wave: 10
+  autonomy: GATED
 
-execution_order:
-  - step: apply_supabase_migrations
-    path: synal/supabase/
-    description: apply all SQL files in order
+lambdas:
+  - name: synal-task-intake
+    handler: lambdas/synal-task-intake/handler.handler
+    runtime: nodejs20.x
+    memory: 256
+    timeout: 15
+    env:
+      SUPABASE_URL: "{{SUPABASE_URL}}"
+      SUPABASE_SERVICE_KEY: "{{SUPABASE_SERVICE_KEY}}"
+    routes:
+      - POST /synal/task-intake
+      - GET  /synal/health
+    schedule: null
+    kill_switch: SYNAL_TASK_INTAKE_ENABLED
 
-  - step: deploy_lambdas
-    path: synal/lambda/
-    description: deploy or update lambda functions
+  - name: synal-auto-execute
+    handler: lambdas/synal-auto-execute/handler.handler
+    runtime: nodejs20.x
+    memory: 256
+    timeout: 30
+    env:
+      SUPABASE_URL: "{{SUPABASE_URL}}"
+      SUPABASE_SERVICE_KEY: "{{SUPABASE_SERVICE_KEY}}"
+    routes:
+      - GET /synal/task-run
+      - POST /synal/task-status
+    schedule: rate(30 minutes)
+    kill_switch: SYNAL_AUTO_EXECUTE_ENABLED
 
-  - step: wire_api_routes
-    description: ensure API Gateway or bridge routes exist
+supabase:
+  instance: S1
+  migrations:
+    - supabase/migrations/001_synal_core.sql
 
-  - step: patch_command_centre_ui
-    path: synal/ui/
-    description: apply UI wiring for tasks, proof, chains
+extension:
+  product: Snaps
+  brand: Synal
+  tagline: "Snaps by Synal"
+  version: "1.0.1"
+  manifest_version: 3
+  path: extension/snaps/
+  accent: "#8B5CF6"
 
-  - step: patch_extensions
-    path: synal/extension/
-    description: ensure Snaps and other extensions send task-intake
+verification:
+  post_deploy:
+    - lambda: synal-task-intake GET /synal/health → {status: healthy}
+    - supabase: SELECT count(*) FROM synal_tasks → no error
+    - table: synal_event_log has rows
 
-  - step: run_validation
-    description: execute golden path test
+rollback:
+  cap_secrets_key: SYNAL_TASK_INTAKE_ENABLED
+  set_to: false
+  on_failure: auto
 
-  - step: update_reality_ledger
-    description: mark components REAL or PARTIAL
-
-validation:
-  golden_path:
-    - snaps_click
-    - task_created
-    - task_visible
-    - task_run_or_auto_execute
-    - proof_written
-    - task_completed
-    - ledger_updated
-
-rules:
-  - no_task_completed_without_proof
-  - supabase_is_source_of_truth
-  - github_is_distribution_layer
-  - bridge_is_execution_layer
+telemetry:
+  table: synal_event_log
+  trace_field: trace_id
+  emit_on: [TASK_CREATED, TASK_EXECUTED, TASK_FAILED]
