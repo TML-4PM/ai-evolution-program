@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  troy-fire-orchestrator governance stack.
+  Lambda + hourly EventBridge rule. Resources existed pre-CFN — this stack
+  formalises them for reproducibility and kill-switch governance.
+  RDTI: T4H-FIRE-01 | Wave: 10 | Autonomy: AUTONOMOUS
+
+Parameters:
+  FireEnabled:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Kill switch. Set false in cap_secrets key FIRE_ENABLED to pause.
+  LambdaExecutionRole:
+    Type: String
+    Default: arn:aws:iam::140548542136:role/lambda-execution-role
+    Description: IAM role for the Lambda function.
+
+Resources:
+
+  FireOrchestratorSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: troy-fire-orchestrator-hourly
+      Description: >
+        Hourly fire mission sweep. Invokes troy-fire-orchestrator with
+        {"action":"full_sweep"} to maintain /fire mission continuity.
+      ScheduleExpression: rate(1 hour)
+      State: ENABLED
+      Targets:
+        - Id: FireOrchestratorTarget
+          Arn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:troy-fire-orchestrator
+          Input: '{"action":"full_sweep"}'
+
+  FireOrchestratorPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: troy-fire-orchestrator
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt FireOrchestratorSchedule.Arn
+
+Outputs:
+  LambdaArn:
+    Description: troy-fire-orchestrator Lambda ARN
+    Value: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:troy-fire-orchestrator
+    Export:
+      Name: TroyFireOrchestratorArn
+
+  RuleArn:
+    Description: EventBridge hourly rule ARN
+    Value: !GetAtt FireOrchestratorSchedule.Arn
+    Export:
+      Name: TroyFireOrchestratorRuleArn
+
+  KillSwitch:
+    Description: How to pause fire-orchestrator
+    Value: "Set cap_secrets.FIRE_ENABLED=false OR Lambda env FIRE_ENABLED=false"
+
+  StackVersion:
+    Value: "1.0.0"

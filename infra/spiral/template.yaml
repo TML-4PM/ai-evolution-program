@@ -1,0 +1,276 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  Spiral App — SAM template reconstructed from live AWS state 2026-04-14.
+  CFN stack spiral-app is CREATE_COMPLETE. This template is the reproducible
+  source-of-truth for sam deploy.
+  RDTI: T4H-SPIRAL-01 | Wave: 10 | Autonomy: GATED
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Handler: app.handler
+    MemorySize: 256
+    Timeout: 30
+    Role: !Sub arn:aws:iam::${AWS::AccountId}:role/lambda-execution-role
+    Environment:
+      Variables:
+        SUPABASE_URL: !Ref SupabaseUrl
+        SUPABASE_SERVICE_ROLE_KEY: !Ref SupabaseServiceRoleKey
+        BRIDGE_POST_URL: !Ref BridgePostUrl
+        BRIDGE_API_KEY: !Ref BridgeApiKey
+        GITHUB_TOKEN: !Ref GithubToken
+        GITHUB_OWNER: TML-4PM
+        DEFAULT_BRANCH: main
+        CALLBACK_BASE_URL: !Ref CallbackBaseUrl
+        CALLBACK_SIGNING_SECRET: !Ref CallbackSigningSecret
+        EVIDENCE_BUCKET: spiral-app-evidence
+        MAX_REPO_CANDIDATES: "10"
+        AWS_ACCOUNT_REGION: ap-southeast-2
+        COMMAND_CENTRE_WIDGET_SLUG: spiral-status
+
+Parameters:
+  SupabaseUrl:
+    Type: String
+    NoEcho: false
+    Default: https://lzfgigiyqpuuxslsygjt.supabase.co
+  SupabaseServiceRoleKey:
+    Type: String
+    NoEcho: true
+  BridgePostUrl:
+    Type: String
+    Default: https://zdgnab3py0.execute-api.ap-southeast-2.amazonaws.com/prod/lambda/invoke
+  BridgeApiKey:
+    Type: String
+    NoEcho: true
+  GithubToken:
+    Type: String
+    NoEcho: true
+  CallbackBaseUrl:
+    Type: String
+    Default: https://ciajr8kl34.execute-api.ap-southeast-2.amazonaws.com/Prod/callback
+  CallbackSigningSecret:
+    Type: String
+    NoEcho: true
+  SpiralEnabled:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+
+Resources:
+
+  # ─── Core pipeline Lambdas (python3.12, 256MB, 30s) ────────────────────────
+
+  SearchGithub:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-search-github
+      Description: Search TML-4PM repos for retrofit candidates
+      CodeUri: lambdas/search_github/
+
+  RankRepos:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-rank-repos
+      Description: Score and rank repo candidates by fit
+      CodeUri: lambdas/rank_repos/
+
+  DetectSpiral:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-detect-spiral
+      Description: Detect spiral in execution signals
+      CodeUri: lambdas/detect_spiral/
+
+  LoadSelectedRepo:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-load-selected-repo
+      Description: Load selected repo for retrofit
+      CodeUri: lambdas/load_selected_repo/
+
+  DryRunChecks:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-dry-run-checks
+      Description: Pre-retrofit dry-run checks
+      CodeUri: lambdas/dry_run_checks/
+
+  PlanRetrofit:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-plan-retrofit
+      Description: Plan retrofit scope and approach
+      CodeUri: lambdas/plan_retrofit/
+
+  RetrofitRepo:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-retrofit-repo
+      Description: Execute repo retrofit
+      CodeUri: lambdas/retrofit_repo/
+
+  DeployToAws:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-deploy-to-aws
+      Description: Deploy retrofitted repo to AWS
+      CodeUri: lambdas/deploy_to_aws/
+
+  SmokeTest:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-smoke-test
+      Description: Post-deploy smoke test
+      CodeUri: lambdas/smoke_test/
+
+  RecordEvidence:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-record-evidence
+      Description: Record evidence to S3 + Supabase
+      CodeUri: lambdas/record_evidence/
+
+  RecordExecution:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-record-execution
+      Description: Persist execution state to workflow_execution
+      CodeUri: lambdas/record_execution/
+
+  ReclassifyPriority:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-reclassify-priority
+      Description: Reclassify priority post-spiral
+      CodeUri: lambdas/reclassify_priority/
+
+  PublishChoiceCard:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-publish-choice-card
+      Description: Publish choice card, persist PAUSED state
+      CodeUri: lambdas/publish_choice_card/
+
+  # ─── Infrastructure Lambdas ─────────────────────────────────────────────────
+
+  SfnBootstrap:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-sfn-bootstrap
+      Description: Bootstrap SFN create/start/describe
+      MemorySize: 128
+      Timeout: 60
+      CodeUri: lambdas/sfn_bootstrap/
+      Environment:
+        Variables: {}  # No shared env — uses execution role directly
+
+  CallbackHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-app-callback-handler
+      Description: Signed callback, writes decision_log, SFN task token resolution
+      CodeUri: lambdas/callback_handler/
+      Events:
+        CallbackApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SpiralCallbackApi
+            Path: /callback/choice
+            Method: POST
+
+  WebhookHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: spiral-webhook-handler
+      Description: Spiral webhook receiver — validates signatures, deposits data
+      Runtime: python3.11
+      Timeout: 60
+      CodeUri: lambdas/webhook_handler/
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/spiral-app-WebhookHandlerFunctionRole-XBbExXNYE1Dr
+      Environment:
+        Variables:
+          SUPABASE_URL: !Ref SupabaseUrl
+          SUPABASE_SERVICE_ROLE_KEY: !Ref SupabaseServiceRoleKey
+          BRIDGE_POST_URL: !Ref BridgePostUrl
+          GITHUB_TOKEN: !Ref GithubToken
+          CALLBACK_SIGNING_SECRET: !Ref CallbackSigningSecret
+          EVIDENCE_BUCKET: spiral-app-evidence
+          ROUTER_FUNCTION: spiral-sfn-bootstrap
+      Events:
+        WebhookApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref SpiralCallbackApi
+            Path: /webhook
+            Method: POST
+
+  # ─── API Gateway ─────────────────────────────────────────────────────────────
+
+  SpiralCallbackApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: spiral-app-api
+      StageName: Prod
+      Description: Spiral callback and webhook endpoints
+
+  # ─── Step Functions ───────────────────────────────────────────────────────────
+
+  SpiralOrchestrator:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: SpiralApp-Orchestrator
+      RoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/lambda-execution-role
+      DefinitionString: !Sub |
+        {
+          "Comment": "Spiral App orchestration pipeline",
+          "StartAt": "SearchGithub",
+          "States": {
+            "SearchGithub":       {"Type":"Task","Resource":"arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:spiral-app-search-github","Next":"RankRepos"},
+            "RankRepos":          {"Type":"Task","Resource":"arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:spiral-app-rank-repos","Next":"DetectSpiral"},
+            "DetectSpiral":       {"Type":"Task","Resource":"arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:spiral-app-detect-spiral","Next":"PublishChoiceCard"},
+            "PublishChoiceCard":  {"Type":"Task","Resource":"arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:spiral-app-publish-choice-card","Next":"WaitForChoice"},
+            "WaitForChoice":      {"Type":"Wait","Seconds":86400,"Next":"LoadSelectedRepo"},
+            "LoadSelectedRepo":   {"Type":"Task","Resource":"arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:spiral-app-load-selected-repo","Next":"DryRunChecks"},
+            "DryRunChecks":       {"Type":"Task","Resource":"arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:spiral-app-dry-run-checks","Next":"PlanRetrofit"},
+            "PlanRetrofit":       {"Type":"Task","Resource":"arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:spiral-app-plan-retrofit","Next":"RetrofitRepo"},
+            "RetrofitRepo":       {"Type":"Task","Resource":"arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:spiral-app-retrofit-repo","Next":"DeployToAws"},
+            "DeployToAws":        {"Type":"Task","Resource":"arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:spiral-app-deploy-to-aws","Next":"SmokeTest"},
+            "SmokeTest":          {"Type":"Task","Resource":"arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:spiral-app-smoke-test","Next":"RecordEvidence"},
+            "RecordEvidence":     {"Type":"Task","Resource":"arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:spiral-app-record-evidence","Next":"ReclassifyPriority"},
+            "ReclassifyPriority": {"Type":"Task","Resource":"arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:spiral-app-reclassify-priority","Next":"RecordExecution"},
+            "RecordExecution":    {"Type":"Task","Resource":"arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:spiral-app-record-execution","End":true}
+          }
+        }
+
+  # ─── Evidence bucket ─────────────────────────────────────────────────────────
+
+  EvidenceBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: spiral-app-evidence
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: project
+          Value: T4H-SPIRAL-01
+        - Key: is_rd
+          Value: "true"
+
+Outputs:
+  CallbackUrl:
+    Value: !Sub https://${SpiralCallbackApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/callback/choice
+    Export:
+      Name: SpiralCallbackUrl
+  WebhookUrl:
+    Value: !Sub https://${SpiralCallbackApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/webhook
+    Export:
+      Name: SpiralWebhookUrl
+  SfnArn:
+    Value: !Ref SpiralOrchestrator
+    Export:
+      Name: SpiralSfnArn
+  KillSwitch:
+    Value: cap_secrets:SPIRAL_ENABLED (set false to pause)
