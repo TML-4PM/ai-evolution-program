@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snaps by Synal</title>
+  <link rel="stylesheet" href="css/popup.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="header">
+      <div class="brand">
+        <div class="icon-wrap">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="10" cy="10" r="8" fill="#8B5CF6" opacity="0.2"/>
+            <circle cx="10" cy="10" r="5" fill="#8B5CF6"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="product-name">Snaps</span>
+          <span class="brand-sub">by Synal</span>
+        </div>
+      </div>
+      <div class="status-chip" id="statusChip">READY</div>
+    </header>
+
+    <nav class="nav">
+      <span class="nav-item active" data-tab="capture">Signals</span>
+      <span class="nav-item" data-tab="tasks">Tasks</span>
+      <span class="nav-item" data-tab="proof">Proof</span>
+    </nav>
+
+    <div class="content">
+      <!-- CAPTURE TAB -->
+      <div class="tab active" id="tab-capture">
+        <div class="field-group">
+          <label class="field-label">PAGE</label>
+          <div class="field-value" id="pageTitle">Loading...</div>
+          <div class="field-sub" id="pageUrl"></div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">CAPTURE</label>
+          <textarea class="capture-input" id="captureText" placeholder="Selected text or manual note..." rows="3"></textarea>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">SCOPE</label>
+          <div class="scope-options">
+            <label class="radio-opt"><input type="radio" name="scope" value="active_tab" checked><span>Active tab</span></label>
+            <label class="radio-opt"><input type="radio" name="scope" value="window"><span>Window</span></label>
+            <label class="radio-opt"><input type="radio" name="scope" value="all_tabs"><span>All tabs</span></label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">DESTINATION</label>
+          <div class="row-pair">
+            <select class="select-input" id="signalFamily">
+              <option value="research">Research</option>
+              <option value="ops">Ops</option>
+              <option value="lead">Lead</option>
+              <option value="evidence">Evidence</option>
+              <option value="audit">Audit</option>
+              <option value="workflow">Workflow</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn-primary" id="snapBtn">Snap Signal</button>
+        <div class="secondary-actions">
+          <button class="btn-link" id="panelBtn">Open Panel</button>
+          <button class="btn-link" id="settingsBtn">Settings</button>
+        </div>
+      </div>
+
+      <!-- TASKS TAB -->
+      <div class="tab" id="tab-tasks">
+        <div class="empty-state" id="tasksEmpty">
+          <div class="empty-icon">◎</div>
+          <div class="empty-text">No active tasks</div>
+        </div>
+        <div id="taskList"></div>
+      </div>
+
+      <!-- PROOF TAB -->
+      <div class="tab" id="tab-proof">
+        <div class="empty-state" id="proofEmpty">
+          <div class="empty-icon">✓</div>
+          <div class="empty-text">No proof items</div>
+        </div>
+        <div id="proofList"></div>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <div class="sync-status">
+        <span class="sync-dot" id="syncDot"></span>
+        <span id="syncText">Ready</span>
+      </div>
+      <div class="context-info" id="tabCount"></div>
+    </footer>
+  </div>
+  <script src="js/popup.js" type="module"></script>
+</body>
+</html>
