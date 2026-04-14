@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+"""Generate simple Synal PNG icons from embedded base64 data.
+Run this before packaging the extension if icons are missing.
+"""
+from __future__ import annotations
+import base64
+from pathlib import Path
+
+ICON_16 = "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAZElEQVR4AWP4DwQMWMDwn4GB4T8DA8N/BgaG/wwMDP8ZGBj+MzAw/GdgYPjPwMDwn4GB4T8DA8N/BgaG/wwMDP8ZGBj+MzAw/GdgYPjPwMDwn4GB4T8DA8N/AAAAAP//AwB0gQ9nI3vGNwAAAABJRU5ErkJggg=="
+ICON_48 = "iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAQAAAD9CzEMAAAAkUlEQVR4Ae3WwQnAIAwF0P7/p7s7bJ1A4m8L1Ih1xQhQnJm1QwAAAAAAAAAAwH8x0d1i5+5m4aX7mQ4bD9m3g7m2t5e6bF1rj2Y5u2r4R4b1W8b1J6rR6z3s5b1g3t5V7u6mG0T1m4k5oZ9v2e8W0Qm3M7s4d7L5m1m8f8Jd4J5wYgYAAAAAAAAAAAD8B0zWm8bP+f1hAAAAAElFTkSuQmCC"
+ICON_128 = "iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAQAAADDPmHLAAAAxUlEQVR4Ae3RAQ0AAAjDMO5fNHI4hA0aS7QBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4G8GAAE2j8m0AAAAAElFTkSuQmCC"
+
+ICONS = {
+    "icon16.png": ICON_16,
+    "icon48.png": ICON_48,
+    "icon128.png": ICON_128,
+}
+
+
+def main() -> None:
+    icons_dir = Path(__file__).resolve().parent / "icons"
+    icons_dir.mkdir(parents=True, exist_ok=True)
+    for name, data in ICONS.items():
+        (icons_dir / name).write_bytes(base64.b64decode(data))
+    print(f"Wrote {len(ICONS)} icons to {icons_dir}")
+
+
+if __name__ == "__main__":
+    main()
