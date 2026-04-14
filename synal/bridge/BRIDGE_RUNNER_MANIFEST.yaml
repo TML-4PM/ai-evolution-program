@@ -1,53 +1,92 @@
-version: 1
-system: synal
-source: github
+version: "2.1"
+project: synal
 repo: TML-4PM/ai-evolution-program
-root: synal/
+pickup_root: synal/
+updated: "2026-04-14"
 
-pickup_paths:
-  - synal/supabase/
-  - synal/lambda/
-  - synal/ui/
-  - synal/extension/
+supabase:
+  instance: S1
+  url_env: SUPABASE_URL
+  key_env: SUPABASE_SERVICE_KEY
+  migrations:
+    - synal/supabase/005_synal_unified_task_execution.sql
+    - synal/supabase/006a_synal_agent_chains.sql
+    - synal/supabase/006b_synal_proof.sql
+    - synal/supabase/006c_synal_chain_functions.sql
+    - synal/supabase/007_synal_telemetry_spine.sql
 
-execution_order:
-  - step: apply_supabase_migrations
-    path: synal/supabase/
-    description: apply all SQL files in order
+lambdas:
+  - name: synal-task-intake
+    file: synal/lambda/synal_task_intake.py
+    handler: synal_task_intake.handler
+    runtime: python3.12
+    memory: 256
+    timeout: 30
+    env:
+      SUPABASE_URL: "{{SUPABASE_URL}}"
+      SUPABASE_SERVICE_KEY: "{{SUPABASE_SERVICE_KEY}}"
+    routes:
+      - POST /synal/task-intake
+      - POST /synal/task-run
+      - POST /synal/task-refresh
+      - GET  /synal/task-status
+      - GET  /synal/health
+    rdti:
+      is_rd: true
+      project_code: SYNAL
 
-  - step: deploy_lambdas
-    path: synal/lambda/
-    description: deploy or update lambda functions
+  - name: synal-auto-execute
+    file: synal/lambda/synal_auto_execute.py
+    handler: synal_auto_execute.handler
+    runtime: python3.12
+    memory: 256
+    timeout: 60
+    env:
+      SUPABASE_URL: "{{SUPABASE_URL}}"
+      SUPABASE_SERVICE_KEY: "{{SUPABASE_SERVICE_KEY}}"
+    routes:
+      - POST /synal/auto-execute
+    schedule: "rate(30 minutes)"
+    rdti:
+      is_rd: true
+      project_code: SYNAL
 
-  - step: wire_api_routes
-    description: ensure API Gateway or bridge routes exist
-
-  - step: patch_command_centre_ui
-    path: synal/ui/
-    description: apply UI wiring for tasks, proof, chains
-
-  - step: patch_extensions
-    path: synal/extension/
-    description: ensure Snaps and other extensions send task-intake
-
-  - step: run_validation
-    description: execute golden path test
-
-  - step: update_reality_ledger
-    description: mark components REAL or PARTIAL
+extension:
+  name: Synal Snaps
+  brand_line: by Synal
+  version: "1.0.1"
+  source: synal/extension/snaps/
+  files:
+    - manifest.json
+    - popup.html
+    - popup.js
+    - options.html
+    - options.js
+    - background.js
+    - generate_icons.py
+    - icons/icon16.png
+    - icons/icon48.png
+    - icons/icon128.png
 
 validation:
   golden_path:
-    - snaps_click
-    - task_created
-    - task_visible
-    - task_run_or_auto_execute
-    - proof_written
-    - task_completed
-    - ledger_updated
-
-rules:
-  - no_task_completed_without_proof
-  - supabase_is_source_of_truth
-  - github_is_distribution_layer
-  - bridge_is_execution_layer
+    - step: create_task
+      fn: synal_create_task
+      expect: task_id
+    - step: seed_chain
+      fn: synal_seed_chain_for_task
+      expect: ok
+    - step: write_proof
+      fn: synal_write_proof
+      expect: proof_id
+    - step: verify_status
+      table: synal_tasks
+      expect_status: completed
+  reality_ledger:
+    system: synal
+    components:
+      - database-schema
+      - github-repo
+      - bridge-routes
+      - telemetry-spine
+      - chrome-extension
