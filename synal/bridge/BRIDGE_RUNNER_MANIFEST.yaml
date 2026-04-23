@@ -1,7 +1,7 @@
 version: "2.1"
 project: synal
 repo: TML-4PM/ai-evolution-program
-branch: synal-ship-20260414
+branch: main
 pickup_root: synal/
 
 metadata:
@@ -10,6 +10,7 @@ metadata:
   project_code: SYNAL-EDGE-01
   wave: 10
   autonomy: GATED
+  execution_contract: bridge_manifest_v2
 
 lambdas:
   - name: synal-task-intake
@@ -19,7 +20,7 @@ lambdas:
     timeout: 15
     env:
       SUPABASE_URL: "{{SUPABASE_URL}}"
-      SUPABASE_SERVICE_KEY: "{{SUPABASE_SERVICE_KEY}}"
+      SUPABASE_SERVICE_ROLE: "{{SUPABASE_SERVICE_ROLE}}"
     routes:
       - POST /synal/task-intake
       - GET  /synal/health
@@ -33,7 +34,7 @@ lambdas:
     timeout: 30
     env:
       SUPABASE_URL: "{{SUPABASE_URL}}"
-      SUPABASE_SERVICE_KEY: "{{SUPABASE_SERVICE_KEY}}"
+      SUPABASE_SERVICE_ROLE: "{{SUPABASE_SERVICE_ROLE}}"
     routes:
       - GET /synal/task-run
       - POST /synal/task-status
@@ -44,12 +45,13 @@ supabase:
   instance: S1
   migrations:
     - supabase/migrations/001_synal_core.sql
+    - supabase/migrations/002_reality_ledger.sql
 
 extension:
   product: Snaps
   brand: Synal
   tagline: "Snaps by Synal"
-  version: "1.0.1"
+  version: "1.0.2"
   manifest_version: 3
   path: extension/snaps/
   accent: "#8B5CF6"
@@ -57,7 +59,9 @@ extension:
 verification:
   post_deploy:
     - lambda: synal-task-intake GET /synal/health → {status: healthy}
+    - lambda: synal-auto-execute GET /synal/task-run → callable
     - supabase: SELECT count(*) FROM synal_tasks → no error
+    - supabase: SELECT count(*) FROM public.reality_ledger → no error
     - table: synal_event_log has rows
 
 rollback:
